@@ -8,6 +8,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/KPI-Labs/design-lab-3/httptools"
@@ -15,19 +16,24 @@ import (
 )
 
 var (
-	port       = flag.Int("port", 8090, "load balancer port")
-	timeoutSec = flag.Int("timeout-sec", 3, "request timeout time in seconds")
-	https      = flag.Bool("https", false, "whether backends support HTTPs")
-
+	port         = flag.Int("port", 8090, "load balancer port")
+	timeoutSec   = flag.Int("timeout-sec", 3, "request timeout time in seconds")
+	https        = flag.Bool("https", false, "whether backends support HTTPs")
 	traceEnabled = flag.Bool("trace", false, "whether to include tracing information into responses")
 )
 
+type ServersPool struct {
+	pool  []string
+	mutex sync.Mutex
+}
+
 var (
 	timeout     = time.Duration(*timeoutSec) * time.Second
-	serversPool = []string{
+	serversPool = ServersPool{pool: []string{
 		"server1:8080",
 		"server2:8080",
 		"server3:8080",
+	},
 	}
 )
 
@@ -91,23 +97,50 @@ func forward(dst string, rw http.ResponseWriter, r *http.Request) error {
 	}
 }
 
+func find(a []string, x string) int {
+	for i, n := range a {
+		if x == n {
+			return i
+		}
+	}
+	return -1
+}
+
+func getServerByURL(url string) string {
+	serversPool.mutex.Lock()
+	serverIndex := int(hash(url)) % len(serversPool.pool)
+	server := serversPool.pool[serverIndex]
+	serversPool.mutex.Unlock()
+	return server
+}
+
 func main() {
 	flag.Parse()
 
-	// TODO: Використовуйте дані про стан сервреа, щоб підтримувати список тих серверів, яким можна відправляти ззапит.
-	for _, server := range serversPool {
+	for _, server := range serversPool.pool {
 		server := server
 		go func() {
 			for range time.Tick(10 * time.Second) {
-				log.Println(server, health(server))
+				isAlive := health(server)
+				serversPool.mutex.Lock()
+				index := find(serversPool.pool, server)
+				if isAlive && index == -1 {
+					serversPool.pool = append(serversPool.pool, server)
+				}
+				if !isAlive && index != -1 {
+					lastIndex := len(serversPool.pool) - 1
+					serversPool.pool[index] = serversPool.pool[lastIndex]
+					serversPool.pool[lastIndex] = ""
+				}
+				serversPool.mutex.Unlock()
+				log.Println(server, isAlive)
 			}
 		}()
 	}
 
 	frontend := httptools.CreateServer(*port, http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-		// TODO: Рееалізуйте свій алгоритм балансувальника.
-		serverIndex := int(hash(r.URL.Path)) % len(serversPool)
-		forward(serversPool[serverIndex], rw, r)
+		server := getServerByURL(r.URL.Path)
+		forward(server, rw, r)
 	}))
 
 	log.Println("Starting load balancer...")
