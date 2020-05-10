@@ -1,0 +1,7 @@
+go_binary {
+  name: "lb",
+  testPkg: "github.com/KPI-Labs/design-lab-3/integration",
+  testSrcs: [
+    "integration/*_test.go",
+  ]
+}
