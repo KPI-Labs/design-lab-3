@@ -1,3 +1,3 @@
-module github.com/roman-mazur/design-practice-3-template
+module github.com/KPI-Labs/design-lab-3
 
 go 1.14
