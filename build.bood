@@ -7,6 +7,11 @@ go_binary {
     "httptools/**/*.go",
     "signal/**/*.go",
     "cmd/server/*.go"
+  ],
+  testSrcs: [
+    "httptools/**/*_test.go",
+    "signal/**/*_test.go",
+    "cmd/server/*_test.go"
   ]
 }
 
@@ -19,8 +24,12 @@ go_binary {
     "httptools/**/*.go",
     "signal/**/*.go",
     "cmd/lb/*.go"
+  ],
+  testSrcs: [
+    "httptools/**/*_test.go",
+    "signal/**/*_test.go",
+    "cmd/server/*_test.go"
   ]
-  // TODO: Додайте запуск тестів для балансувальника.
 }
 
 // TODO: Додайте модуль для інтеграційних тестів.
