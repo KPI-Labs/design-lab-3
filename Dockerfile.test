@@ -2,13 +2,13 @@ FROM golang:1.14 as build
 
 RUN apt-get update && apt-get install -y ninja-build
 
-RUN go get -u github.com/KPI-labs/design-lab-2/build/cmd/bood/
+RUN go get -u github.com/KPI-Labs/design-lab-2/build/cmd/bood/
 
 WORKDIR /go/src/practice-3
 COPY . .
 
 # TODO: Замініть на запуск bood, який призводить до виконання інтеграційних тестів.
 # ENTRYPOINT ["bood", "integration-tests"]
-RUN rm build.bood
-RUN mv build.bood.test build.bood
-ENTRYPOINT ["bood"]
+# RUN rm build.bood
+# RUN mv build.bood.test build.bood
+ENTRYPOINT ["bood", "out/reports/integration-tests/test.txt"]

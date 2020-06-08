@@ -33,3 +33,10 @@ go_binary {
 }
 
 // TODO: Додайте модуль для інтеграційних тестів.
+go_binary {
+  name: "integration-tests",
+  testPkg: "github.com/KPI-Labs/design-lab-3/integration",
+  testSrcs: [
+    "integration/*_test.go",
+  ]
+}

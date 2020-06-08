@@ -2,12 +2,15 @@ FROM golang:1.14 as build
 
 RUN apt-get update && apt-get install -y ninja-build
 
-RUN go get -u github.com/KPI-labs/design-lab-2/build/cmd/bood/
+RUN go get -u github.com/KPI-Labs/design-lab-2/build/cmd/bood/
 
 WORKDIR /go/src/practice-3
 COPY . .
 
-RUN CGO_ENABLED=0 bood
+RUN CGO_ENABLED=0 bood out/bin/server
+
+RUN CGO_ENABLED=0 bood out/bin/lb
+
 
 # ==== Final image ====
 FROM alpine:3.11
