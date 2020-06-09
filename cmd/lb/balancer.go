@@ -22,9 +22,39 @@ var (
 	traceEnabled = flag.Bool("trace", false, "whether to include tracing information into responses")
 )
 
+func find(a []string, x string) int {
+	for i, n := range a {
+		if x == n {
+			return i
+		}
+	}
+	return -1
+}
+
 type ServersPool struct {
 	pool  []string
 	mutex sync.Mutex
+}
+
+func (serversPool *ServersPool) addServer(serverURL string) {
+	serversPool.mutex.Lock()
+	serversPool.pool = append(serversPool.pool, serverURL)
+	serversPool.mutex.Unlock()
+}
+
+func (serversPool *ServersPool) removeServer(serverURL string) {
+	serversPool.mutex.Lock()
+	index := find(serversPool.pool, serverURL)
+	serversPool.pool = append(serversPool.pool[:index], serversPool.pool[index+1:]...)
+	serversPool.mutex.Unlock()
+}
+
+func (serversPool *ServersPool) getServerByURL(url string) string {
+	serversPool.mutex.Lock()
+	serverIndex := int(hash(url)) % len(serversPool.pool)
+	serverURL := serversPool.pool[serverIndex]
+	serversPool.mutex.Unlock()
+	return serverURL
 }
 
 var (
@@ -97,49 +127,29 @@ func forward(dst string, rw http.ResponseWriter, r *http.Request) error {
 	}
 }
 
-func find(a []string, x string) int {
-	for i, n := range a {
-		if x == n {
-			return i
-		}
-	}
-	return -1
-}
-
-func getServerByURL(url string) string {
-	serversPool.mutex.Lock()
-	serverIndex := int(hash(url)) % len(serversPool.pool)
-	server := serversPool.pool[serverIndex]
-	serversPool.mutex.Unlock()
-	return server
-}
-
 func main() {
 	flag.Parse()
 
 	for _, server := range serversPool.pool {
 		server := server
+		wasAlive := true
 		go func() {
 			for range time.Tick(10 * time.Second) {
 				isAlive := health(server)
-				serversPool.mutex.Lock()
-				index := find(serversPool.pool, server)
-				if isAlive && index == -1 {
-					serversPool.pool = append(serversPool.pool, server)
+				if isAlive && !wasAlive {
+					serversPool.addServer(server)
 				}
-				if !isAlive && index != -1 {
-					lastIndex := len(serversPool.pool) - 1
-					serversPool.pool[index] = serversPool.pool[lastIndex]
-					serversPool.pool[lastIndex] = ""
+				if !isAlive && wasAlive {
+					serversPool.removeServer(server)
 				}
-				serversPool.mutex.Unlock()
 				log.Println(server, isAlive)
+				wasAlive = isAlive
 			}
 		}()
 	}
 
 	frontend := httptools.CreateServer(*port, http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-		server := getServerByURL(r.URL.Path)
+		server := serversPool.getServerByURL(r.URL.Path)
 		forward(server, rw, r)
 	}))
 

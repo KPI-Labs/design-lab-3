@@ -4,6 +4,7 @@ import (
 	"math"
 	"math/rand"
 	"testing"
+
 	. "gopkg.in/check.v1"
 )
 
@@ -31,7 +32,7 @@ func (s *MySuite) TestBalancer(c *C) {
 
 	for i := 0; i < counts; i++ {
 		randURL := randStringBytes(20)
-		server := getServerByURL(randURL)
+		server := serversPool.getServerByURL(randURL)
 		serversCount[server]++
 	}
 
