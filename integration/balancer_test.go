@@ -2,12 +2,21 @@ package integration
 
 import (
 	"fmt"
+	"math/rand"
+        "math"
 	"net/http"
 	"sync"
 	"testing"
 	"time"
-	"math/rand"
+
+	. "gopkg.in/check.v1"
 )
+
+func Test(t *testing.T) { TestingT(t) }
+
+type MySuite struct{}
+
+var _ = Suite(&MySuite{})
 
 const baseAddress = "http://balancer:8090"
 
@@ -22,7 +31,7 @@ var serversPool = []string{
 }
 
 type ServerCounts struct {
-	mutex sync.Mutex
+	mutex    sync.Mutex
 	counters map[string]int
 }
 
@@ -36,14 +45,14 @@ func randStringBytes(n int) string {
 	return string(b)
 }
 
-func worker(wg *sync.WaitGroup, client http.Client, serverCounts *ServerCounts, i int, t *testing.T) {
+func worker(wg *sync.WaitGroup, client http.Client, serverCounts *ServerCounts, i int, c *C) {
 	defer wg.Done()
 	randUrl := randStringBytes(10)
 	resp, err := client.Get(fmt.Sprintf("%s/%s", baseAddress, randUrl))
 	respServer := resp.Header.Get("lb-from")
 
 	if err != nil {
-		t.Logf("response from [%s]", respServer)
+		c.Errorf("response from [%s]", respServer)
 	}
 
 	serverCounts.mutex.Lock()
@@ -51,29 +60,35 @@ func worker(wg *sync.WaitGroup, client http.Client, serverCounts *ServerCounts, 
 	serverCounts.mutex.Unlock()
 }
 
-func TestBalancer(t *testing.T) {
+func (s *MySuite) TestBalancer(c *C) {
 	m := ServerCounts{counters: make(map[string]int)}
 	var wg sync.WaitGroup
-	for i := 0; i < 100; i++ {
+	counts := 1000
+	sigma := 0.05
+	for i := 0; i < counts; i++ {
 		wg.Add(1)
-		go worker(&wg, client, &m, i, t)
+		go worker(&wg, client, &m, i, c)
 	}
 	wg.Wait()
+	expectedRatio := 1.0 / float64(len(serversPool))
+	for _, count := range m.counters {
+		diff := math.Abs(expectedRatio - float64(count)/float64(counts))
+		c.Assert(diff < sigma, Equals, true)
+	}
 }
 
-func BenchmarkBalancer(b *testing.B) {
+func (s *MySuite) BenchmarkBalancer(c *C) {
 	var wg sync.WaitGroup
-	for n := 0; n < b.N; n++ {
+	for n := 0; n < c.N; n++ {
 		wg.Add(1)
-		go func(group sync.WaitGroup) {
+		go func(group *sync.WaitGroup) {
 			defer wg.Done()
 			randUrl := randStringBytes(10)
 			_, err := client.Get(fmt.Sprintf("%s/%s", baseAddress, randUrl))
 			if err != nil {
-				b.Error(err)
+				c.Error(err)
 			}
-		}(wg)
+		}(&wg)
 	}
 	wg.Wait()
 }
-
